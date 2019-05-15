@@ -60,6 +60,7 @@
                     <connections>
                         <outlet property="imageView" destination="tpo-wO-Kah" id="iyd-rW-XNf"/>
                         <outlet property="infoLabel" destination="Utl-4x-atS" id="lD6-L0-NKQ"/>
+                        <outlet property="uploadButton" destination="SDk-HI-CzB" id="7RB-q0-u2L"/>
                     </connections>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="dkx-z0-nzr" sceneMemberID="firstResponder"/>
