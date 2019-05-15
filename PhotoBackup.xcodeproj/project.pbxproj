@@ -14,6 +14,8 @@
 		0D2A482B228363D8004951DD /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 0D2A4829228363D8004951DD /* LaunchScreen.storyboard */; };
 		0D2A4836228363D8004951DD /* PhotoBackupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D2A4835228363D8004951DD /* PhotoBackupTests.swift */; };
 		0D2A4841228363D8004951DD /* PhotoBackupUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D2A4840228363D8004951DD /* PhotoBackupUITests.swift */; };
+		0D2A485022837D97004951DD /* Alamofire.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0D2A484E22837D8C004951DD /* Alamofire.framework */; };
+		0D2A485122837D97004951DD /* Alamofire.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 0D2A484E22837D8C004951DD /* Alamofire.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -33,6 +35,20 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		0D2A485222837D97004951DD /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				0D2A485122837D97004951DD /* Alamofire.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		0D2A481D228363D6004951DD /* PhotoBackup.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PhotoBackup.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0D2A4820228363D6004951DD /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -47,6 +63,7 @@
 		0D2A483C228363D8004951DD /* PhotoBackupUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PhotoBackupUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0D2A4840228363D8004951DD /* PhotoBackupUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhotoBackupUITests.swift; sourceTree = "<group>"; };
 		0D2A4842228363D8004951DD /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		0D2A484E22837D8C004951DD /* Alamofire.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Alamofire.framework; path = Carthage/Build/iOS/Alamofire.framework; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -54,6 +71,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0D2A485022837D97004951DD /* Alamofire.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -97,6 +115,7 @@
 		0D2A481F228363D6004951DD /* PhotoBackup */ = {
 			isa = PBXGroup;
 			children = (
+				0D2A484E22837D8C004951DD /* Alamofire.framework */,
 				0D2A4820228363D6004951DD /* AppDelegate.swift */,
 				0D2A4822228363D6004951DD /* ViewController.swift */,
 				0D2A4824228363D6004951DD /* Main.storyboard */,
@@ -135,6 +154,7 @@
 				0D2A4819228363D6004951DD /* Sources */,
 				0D2A481A228363D6004951DD /* Frameworks */,
 				0D2A481B228363D6004951DD /* Resources */,
+				0D2A485222837D97004951DD /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -434,6 +454,10 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 6XGV6S5N8N;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Carthage/Build/iOS",
+				);
 				INFOPLIST_FILE = PhotoBackup/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -452,6 +476,10 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 6XGV6S5N8N;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/Carthage/Build/iOS",
+				);
 				INFOPLIST_FILE = PhotoBackup/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
