@@ -14,28 +14,22 @@ import JGProgressHUD
 
 
 class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavigationControllerDelegate{
-    
-    //TODO: Refactoring Serversuche und getIPAdr
-    //      - loading alert anzeigen bis Server gefunden wurde
-   
-    
+
     @IBOutlet weak var uploadButton: UIButton!
     @IBOutlet weak var imageView: UIImageView!
     @IBOutlet weak var infoLabel: UILabel!
     
+    var hud = JGProgressHUD(style: .dark)
+    
+    let network = NetworkHelper()
+    var serverIP = ""
+    let semaphore = DispatchSemaphore(value: 0)
+    
     var counter = 0
     var total = 0
     var errorOccured = false
-    
-    var serverIP = ""
-    
-    var hud = JGProgressHUD(style: .dark)
-    
     var isBackupRunning = false
     var cancelBackup = false
-    
-    let semaphore = DispatchSemaphore(value: 0)
-    
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -49,120 +43,66 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         displayNumberOfAvailablePhotos()
-        
-        if (serverIP == "") {
-            print("IP: \(getLocalIPAddress())")
-            self.hud.vibrancyEnabled = true
-            self.hud.textLabel.text = "Suche Server"
-            self.hud.show(in: self.view)
-            
-            DispatchQueue.global().async {
-                self.findServer()
-            }
-            self.uploadButton.isEnabled = false
-        }
+        checkIfServerIPIsAvailable()
     }
     
+    // MARK: - Server Finding
+    
     func findServer() {
-        let partOfIPAddress = getLocalIPAddress().split(separator: ".").dropLast()
+        guard let localIP = network.getLocalIPAddress() else {
+            self.localIPNotFound()
+            return
+        }
         
-        let s = partOfIPAddress.joined(separator: ".")
-        print(s)
-        for präfix in 1...255 {
-            let tmp = "\(s).\(präfix)"
-            findServerRequest(ip: tmp, completion: { response in
+        let präfix = localIP.split(separator: ".").dropLast().joined(separator: ".")
+        
+        for suffix in 1...255 {
+            let tmpIP = "\(präfix).\(suffix)"
+            findServerRequest(ip: tmpIP, completion: { response in
                 if (response) {
-                    self.serverIP = tmp
-                    DispatchQueue.main.async {
-                        // Alert Server found!
-                        
-                        UIView.animate(withDuration: 0.1, animations: {
-                            self.hud.textLabel.text = "Server gefunden"
-                            self.hud.detailTextLabel.text = nil
-                            self.hud.indicatorView = JGProgressHUDSuccessIndicatorView()
-                            self.hud.dismiss(afterDelay: 1, animated: true)
-                        })
-                        
-                        
-                        self.uploadButton.isEnabled = true
-                    }
+                    self.serverIP = tmpIP
+                    self.serverFound(ip: tmpIP)
                 }
-                print(response)
             })
         }
     }
     
     func findServerRequest(ip: String, completion: @escaping (Bool) -> Void){
-
         let url = "http://\(ip):8080/backup"
-        Alamofire.request(url)
-            .responseJSON(completionHandler: {response in
-                switch response.response?.statusCode {
-                case 204: print("\(ip): found server")
-                completion(true)
-                default: print("\(ip): no server")
-                completion(false)
-                }
-            })
-    }
-    
-    
-    func displayNumberOfAvailablePhotos() {
-        DispatchQueue.global().async {
-            PHPhotoLibrary.requestAuthorization { status in
-                switch status {
-                case .authorized:
-                    let fetchOptions = PHFetchOptions()
-                    let allPhotos = PHAsset.fetchAssets(with: .image, options: fetchOptions)
-                    DispatchQueue.main.sync {
-                        self.total = allPhotos.count
-                        self.infoLabel.text = "\(self.total) Bilder gefunden"
-                    }
-                    allPhotos.firstObject?.requestContentEditingInput(with: PHContentEditingInputRequestOptions(), completionHandler: {
-                        (eidtingInput, info) in
-                        if let input = eidtingInput, let imgURL = input.fullSizeImageURL {
-                            let imageData = try! Data(contentsOf: imgURL)
-                           DispatchQueue.main.async {
-                                self.imageView.image = UIImage(data: imageData)
-                           }
-                        }
-                    })
-                    
-                case .denied: print("denied")
-                case .notDetermined: print("notDetermined")
-                case .restricted: print("restricted")
-                }
+        Alamofire.request(url).responseJSON(completionHandler: { response in
+            switch response.response?.statusCode {
+                case 204:
+                    completion(true)
+                default:
+                    completion(false)
             }
-        }
+        })
     }
     
-    /*
- 
-     TODO:  - Exists Request -> danach erst upload
-            - semaphore checken -> sequentiell
-     - "Service Discovery": eigene IP herausfinden und dann jeden lokalen Rechner anpingen bzw anfragen auf bestimmte URL -> Server finden
- 
- */
+    // MARK: - Upload (Requests)
     
-    
-    func exists(name: String, timestamp: Int64, completion: @escaping (Bool?) -> Void) {
+    func callExistsRequest(name: String, timestamp: Int64, completion: @escaping (Bool?) -> Void) {
         Alamofire.request("http://\(serverIP):8080/exists", parameters: ["name": name, "timestamp":timestamp])
             .responseJSON(completionHandler: {response in
                 switch response.response?.statusCode {
                 case 404:
                     print("not found")
                     completion(false)
-                case 200: print("ok")
+                case 200:
+                    print("ok")
                     completion(true)
-                case 400: print("bad request")
+                case 400:
+                    print("bad request")
                     completion(nil)
-                default: print("other status code: \(String(describing: response.response?.statusCode))")
+                default:
+                    print("other status code: \(String(describing: response.response?.statusCode))")
                     completion(nil)
                 }
           })
     }
     
-    func upload(imgURL: URL, timestamp: Int64, completion: @escaping (Bool) -> Void) {
+    
+    func callUploadRequest(imgURL: URL, timestamp: Int64, completion: @escaping (Bool) -> Void) {
         
         let imageData = try! Data(contentsOf: imgURL)
         DispatchQueue.main.async {
@@ -181,27 +121,11 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
 
             switch encodingResult {
             case .success(let upload, _, _):
-//                upload.uploadProgress { progress in
-//                    print("process: \(Float(progress.fractionCompleted))%")
-//                }
-               // upload.validate()
-//                guard upload.response?.statusCode == 201 else {
-//                    if upload.response?.statusCode == nil {
-//                        self.errorOccured = true
-//                    }
-//                    print("Error: HttpStatusCode is \(upload.response?.statusCode)"); return
-//                }
-                
                 upload.responseJSON { response in
-                    
-//                    guard response.result.isSuccess else {
-//                            print("Error while uploading file: \(String(describing: response.result.error))")
-//                            return
-//                    }
-                    print("StatusCode: \(response.response?.statusCode)")
-                    //print(value)
                     guard let statusCode = response.response?.statusCode else  {
-                        print("Something went wrong while uploading: response is nul!"); completion(false); return
+                        print("Something went wrong while uploading: response is nul!");
+                        completion(false);
+                        return
                     }
                     if statusCode == 201 {
                         completion(true)
@@ -210,50 +134,16 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
                         print("Something went wrong while uploading: response is nul!")
                         completion(false)
                     }
-                    
-                    
-                    
                 }
-                
-                
-                
             case .failure(let encodingError):
                 print(encodingError)
+                completion(false)
             }
         })
     }
     
-    func backupWasCanceled() {
-        UIView.animate(withDuration: 0.1, animations: {
-            self.hud.textLabel.text = "Backup abgebrochen!"
-            self.hud.detailTextLabel.text = nil
-            self.hud.indicatorView = JGProgressHUDErrorIndicatorView()
-            self.hud.dismiss(afterDelay: 3, animated: true)
-        })
-        self.infoLabel.text = "Backup wurde abgebrochen."
-        self.resetVarsBeforeUploading()
-    }
     
-    func errorOccuredWhileUploading() {
-        UIView.animate(withDuration: 0.1, animations: {
-            self.hud.textLabel.text = "Backup unerwartet beendet!"
-            self.hud.detailTextLabel.text = nil
-            self.hud.indicatorView = JGProgressHUDErrorIndicatorView()
-            self.hud.dismiss(afterDelay: 3, animated: true)
-        })
-        self.infoLabel.text = "\(self.counter) von \(self.total): Fehler beim Hochladen!"
-        self.resetVarsBeforeUploading()
-    }
-    
-    func resetVarsBeforeUploading() {
-        self.isBackupRunning = false
-        self.uploadButton.isEnabled = true
-        self.cancelBackup = false
-        self.errorOccured = false
-        self.counter = 0
-    }
-    
-    func startBackup() {
+    func startUpload() {
         PHPhotoLibrary.requestAuthorization { status in
             switch status {
             case .authorized:
@@ -293,8 +183,7 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
                     image.requestContentEditingInput(with: PHContentEditingInputRequestOptions(), completionHandler: { (eidtingInput, info) in
                         if let input = eidtingInput, let imgURL = input.fullSizeImageURL {
                             let timestamp = Int64((image.creationDate!.timeIntervalSince1970) * 1000)
-                            //                            self.upload(imgURL: imgURL, timestamp: timestamp)
-                            self.exists(name: "\(imgURL.absoluteString.split(separator: "/").last!)", timestamp: timestamp,  completion: { result in
+                            self.callExistsRequest(name: "\(imgURL.absoluteString.split(separator: "/").last!)", timestamp: timestamp,  completion: { result in
                                 guard let exists = result else {
                                     self.errorOccured = true
                                     self.semaphore.signal()
@@ -302,7 +191,7 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
                                 }
                                 if (exists == false) {
                                     print("Image not existing - upload")
-                                    self.upload(imgURL: imgURL, timestamp: timestamp, completion: { result in
+                                    self.callUploadRequest(imgURL: imgURL, timestamp: timestamp, completion: { result in
                                         if result {
                                            
                                             DispatchQueue.main.async {
@@ -338,9 +227,6 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
                     })
                 }
                 
-                
-                
-                
             case .denied, .restricted:
                 print("Not allowed")
             case .notDetermined:
@@ -348,6 +234,35 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
                 print("Not determined yet")
             }
         }
+    }
+    
+    // MARK: - UI Handler
+    
+    
+    @objc func handleTap(sender: UITapGestureRecognizer? = nil) {
+        if !isBackupRunning {
+            return
+        }
+        self.showShouldCancelAlert()
+    }
+    
+    @IBAction func button(_ sender: Any) {
+        showBackupStartHUD()
+        self.infoLabel.text = "Doppeltap, um Vorgang abzubrechen."
+        self.startUpload()
+    }
+    
+    
+    
+    // MARK: - HUD Helper
+    
+    
+    func showBackupStartHUD() {
+        self.hud = JGProgressHUD(style: .dark)
+        self.hud.vibrancyEnabled = true
+        self.hud.textLabel.text = "Backup läuft"
+        self.hud.detailTextLabel.text = "\(counter) von \(total) hochgeladen"
+        self.hud.show(in: self.view)
     }
     
     func finishedBackup() {
@@ -362,127 +277,119 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
     }
     
     func updateHUD() {
-       self.hud.detailTextLabel.text = "\(counter) von \(total) hochgeladen"
+        self.hud.detailTextLabel.text = "\(counter) von \(total) hochgeladen"
     }
     
-    @objc func handleTap(sender: UITapGestureRecognizer? = nil) {
-        print("DoubleTap")
-        
-        if !isBackupRunning {
-            return
+    func backupWasCanceled() {
+        UIView.animate(withDuration: 0.1, animations: {
+            self.hud.textLabel.text = "Backup abgebrochen!"
+            self.hud.detailTextLabel.text = nil
+            self.hud.indicatorView = JGProgressHUDErrorIndicatorView()
+            self.hud.dismiss(afterDelay: 3, animated: true)
+        })
+        self.infoLabel.text = "Backup wurde abgebrochen."
+        self.resetVarsBeforeUploading()
+    }
+    
+    func errorOccuredWhileUploading() {
+        UIView.animate(withDuration: 0.1, animations: {
+            self.hud.textLabel.text = "Backup unerwartet beendet!"
+            self.hud.detailTextLabel.text = nil
+            self.hud.indicatorView = JGProgressHUDErrorIndicatorView()
+            self.hud.dismiss(afterDelay: 3, animated: true)
+        })
+        self.infoLabel.text = "\(self.counter) von \(self.total): Fehler beim Hochladen!"
+        self.resetVarsBeforeUploading()
+    }
+    
+    func localIPNotFound() {
+        DispatchQueue.main.async {
+            UIView.animate(withDuration: 0.1, animations: {
+                self.hud.textLabel.text = "IP Adresse nicht gefunden!"
+                self.hud.detailTextLabel.text = "Starte die App erneut."
+                self.hud.indicatorView = JGProgressHUDErrorIndicatorView()
+                self.hud.dismiss(afterDelay: 5, animated: true)
+            })
         }
-        
+    }
+    
+    func serverFound(ip: String) {
+        DispatchQueue.main.async {
+            UIView.animate(withDuration: 0.1, animations: {
+                self.hud.textLabel.text = "Server gefunden"
+                self.hud.detailTextLabel.text = "IP: \(ip)"
+                self.hud.indicatorView = JGProgressHUDSuccessIndicatorView()
+                self.hud.dismiss(afterDelay: 1, animated: true)
+            })
+            self.uploadButton.isEnabled = true
+        }
+    }
+    
+    func showServerSearchingHUD() {
+        self.hud.vibrancyEnabled = true
+        self.hud.textLabel.text = "Suche Server"
+        self.hud.show(in: self.view)
+    }
+    
+    // MARK: - Helper Methods
+    
+    func resetVarsBeforeUploading() {
+        self.isBackupRunning = false
+        self.uploadButton.isEnabled = true
+        self.cancelBackup = false
+        self.errorOccured = false
+        self.counter = 0
+    }
+    
+    func checkIfServerIPIsAvailable() {
+        if (serverIP == "") {
+            self.showServerSearchingHUD()
+            DispatchQueue.global().async {
+                self.findServer()
+            }
+            self.uploadButton.isEnabled = false
+        }
+    }
+    
+    func displayNumberOfAvailablePhotos() {
+        DispatchQueue.global().async {
+            PHPhotoLibrary.requestAuthorization { status in
+                switch status {
+                case .authorized:
+                    let fetchOptions = PHFetchOptions()
+                    let allPhotos = PHAsset.fetchAssets(with: .image, options: fetchOptions)
+                    DispatchQueue.main.sync {
+                        self.total = allPhotos.count
+                        self.infoLabel.text = "\(self.total) Bilder gefunden"
+                    }
+                    allPhotos.firstObject?.requestContentEditingInput(with: PHContentEditingInputRequestOptions(), completionHandler: {
+                        (eidtingInput, info) in
+                        if let input = eidtingInput, let imgURL = input.fullSizeImageURL {
+                            let imageData = try! Data(contentsOf: imgURL)
+                            DispatchQueue.main.async {
+                                self.imageView.image = UIImage(data: imageData)
+                            }
+                        }
+                    })
+                    
+                case .denied: print("denied")
+                case .notDetermined: print("notDetermined")
+                case .restricted: print("restricted")
+                }
+            }
+        }
+    }
+    
+    func showShouldCancelAlert() {
         let alertController = UIAlertController(title: "Backup abbrechen?", message: "", preferredStyle: .alert)
         let actionYes = UIAlertAction(title: "Ja", style: .destructive) { (action:UIAlertAction) in
-            print("You've pressed Yes");
             self.cancelBackup = true
         }
         let actionNo = UIAlertAction(title: "Nein", style: .cancel) { (action:UIAlertAction) in
-            print("You've pressed no");
         }
         alertController.addAction(actionYes)
         alertController.addAction(actionNo)
         self.present(alertController, animated: true)
-        
     }
-    
-    @IBAction func button(_ sender: Any) {
-    
-        self.hud = JGProgressHUD(style: .dark)
-        self.hud.vibrancyEnabled = true
-        self.hud.textLabel.text = "Backup läuft"
-        self.hud.detailTextLabel.text = "\(counter) von \(total) hochgeladen"
-        self.hud.show(in: self.view)
-        
-        self.infoLabel.text = "Doppeltap, um Vorgang abzubrechen."
-        
-        self.startBackup()
-//        DispatchQueue.global().async {
-//            sleep(2)
-//            DispatchQueue.main.async {
-//                self.hud.detailTextLabel.text = "10 von 1500 hochgeladen"
-//
-//            }
-//        }
-        
-       
-    }
-    
-    func getLocalIPAddress() -> String {
-        
-        var temp = [CChar](repeating: 0, count: 255)
-        enum SocketType: Int32 {
-            case  SOCK_STREAM = 0, SOCK_DGRAM, SOCK_RAW
-        }
-        
-        // host name
-        gethostname(&temp, temp.count)
-        // create addrinfo based on hints
-        // if host name is nil or "" we can connect on localhost
-        // if host name is specified ( like "computer.domain" ... "My-MacBook.local" )
-        // than localhost is not aviable.
-        // if port is 0, bind will assign some free port for us
-        
-        var port: UInt16 = 0
-        let hosts = ["localhost", String(cString: temp)]
-        var hints = addrinfo()
-        hints.ai_flags = 0
-        hints.ai_family = PF_UNSPEC
-        
-        for host in hosts {
-            guard host.contains("localhost") == false else {
-                continue
-            }
-            print("\n\(host)")
-            print()
-            
-            // retrieve the info
-            // getaddrinfo will allocate the memory, we are responsible to free it!
-            var info: UnsafeMutablePointer<addrinfo>?
-            defer {
-                if info != nil
-                {
-                    freeaddrinfo(info)
-                }
-            }
-            var status: Int32 = getaddrinfo(host, String(port), nil, &info)
-            guard status == 0 else {
-                print(errno, String(cString: gai_strerror(errno)))
-                continue
-            }
-            var p = info
-            var i = 0
-            var ipFamily = ""
-            var ipType = ""
-            while p != nil {
-                i += 1
-                // use local copy of info
-                var _info = p!.pointee
-                p = _info.ai_next
-                
-                switch _info.ai_family {
-                case PF_INET:
-                    _info.ai_addr.withMemoryRebound(to: sockaddr_in.self, capacity: 1, { p in
-                        inet_ntop(AF_INET, &p.pointee.sin_addr, &temp, socklen_t(temp.count))
-                        ipFamily = "IPv4"
-                        
-                    })
-                    return String(cString: temp)
-                case PF_INET6:
-                    _info.ai_addr.withMemoryRebound(to: sockaddr_in6.self, capacity: 1, { p in
-                        inet_ntop(AF_INET6, &p.pointee.sin6_addr, &temp, socklen_t(temp.count))
-                        ipFamily = "IPv6"
-                    })
-                default:
-                    continue
-                }
-                print(i,"\(ipFamily)\t\(String(cString: temp))", SocketType(rawValue: _info.ai_socktype)!)
-                
-            }
-            
-        }
-        return ""
-    }
-    
     
 }
