@@ -10,11 +10,13 @@ import UIKit
 import Photos
 import Alamofire
 import Darwin
+import JGProgressHUD
+
 
 class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavigationControllerDelegate{
     
     //TODO: Refactoring Serversuche und getIPAdr
-    //      - loading alert anzeigen bis Server gefunden wurde 
+    //      - loading alert anzeigen bis Server gefunden wurde
    
     
     @IBOutlet weak var uploadButton: UIButton!
@@ -26,22 +28,39 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
     var errorOccured = false
     
     var serverIP = ""
-
+    
+    var hud = JGProgressHUD(style: .dark)
+    
+    var isBackupRunning = false
+    var cancelBackup = false
     
     let semaphore = DispatchSemaphore(value: 0)
     
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        
+        let tap = UITapGestureRecognizer(target: self, action: #selector(handleTap))
+        tap.numberOfTapsRequired = 2
+        self.view.addGestureRecognizer(tap)
+    }
+    
+    
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
         displayNumberOfAvailablePhotos()
         
-        print("IP: \(getLocalIPAddress())")
-        DispatchQueue.global().async {
-             self.findServer()
+        if (serverIP == "") {
+            print("IP: \(getLocalIPAddress())")
+            self.hud.vibrancyEnabled = true
+            self.hud.textLabel.text = "Suche Server"
+            self.hud.show(in: self.view)
+            
+            DispatchQueue.global().async {
+                self.findServer()
+            }
+            self.uploadButton.isEnabled = false
         }
-        
-        self.uploadButton.isEnabled = false
-       
     }
     
     func findServer() {
@@ -56,6 +75,15 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
                     self.serverIP = tmp
                     DispatchQueue.main.async {
                         // Alert Server found!
+                        
+                        UIView.animate(withDuration: 0.1, animations: {
+                            self.hud.textLabel.text = "Server gefunden"
+                            self.hud.detailTextLabel.text = nil
+                            self.hud.indicatorView = JGProgressHUDSuccessIndicatorView()
+                            self.hud.dismiss(afterDelay: 1, animated: true)
+                        })
+                        
+                        
                         self.uploadButton.isEnabled = true
                     }
                 }
@@ -87,7 +115,8 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
                     let fetchOptions = PHFetchOptions()
                     let allPhotos = PHAsset.fetchAssets(with: .image, options: fetchOptions)
                     DispatchQueue.main.sync {
-                        self.infoLabel.text = "\(allPhotos.count) Bilder gefunden"
+                        self.total = allPhotos.count
+                        self.infoLabel.text = "\(self.total) Bilder gefunden"
                     }
                     allPhotos.firstObject?.requestContentEditingInput(with: PHContentEditingInputRequestOptions(), completionHandler: {
                         (eidtingInput, info) in
@@ -117,7 +146,7 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
     
     
     func exists(name: String, timestamp: Int64, completion: @escaping (Bool?) -> Void) {
-        Alamofire.request("http://localhost:8080/exists", parameters: ["name": name, "timestamp":timestamp])
+        Alamofire.request("http://\(serverIP):8080/exists", parameters: ["name": name, "timestamp":timestamp])
             .responseJSON(completionHandler: {response in
                 switch response.response?.statusCode {
                 case 404:
@@ -147,7 +176,7 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
                                      fileName: "\(imgURL.absoluteString.split(separator: "/").last!)",
                                      mimeType: "image/\(imgURL.absoluteString.split(separator: ".").last!)")
         },
-         to: "http://localhost:8080/image",
+         to: "http://\(serverIP):8080/image",
          encodingCompletion: { encodingResult in
 
             switch encodingResult {
@@ -194,10 +223,37 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
         })
     }
     
+    func backupWasCanceled() {
+        UIView.animate(withDuration: 0.1, animations: {
+            self.hud.textLabel.text = "Backup abgebrochen!"
+            self.hud.detailTextLabel.text = nil
+            self.hud.indicatorView = JGProgressHUDErrorIndicatorView()
+            self.hud.dismiss(afterDelay: 3, animated: true)
+        })
+        self.infoLabel.text = "Backup wurde abgebrochen."
+        self.resetVarsBeforeUploading()
+    }
     
+    func errorOccuredWhileUploading() {
+        UIView.animate(withDuration: 0.1, animations: {
+            self.hud.textLabel.text = "Backup unerwartet beendet!"
+            self.hud.detailTextLabel.text = nil
+            self.hud.indicatorView = JGProgressHUDErrorIndicatorView()
+            self.hud.dismiss(afterDelay: 3, animated: true)
+        })
+        self.infoLabel.text = "\(self.counter) von \(self.total): Fehler beim Hochladen!"
+        self.resetVarsBeforeUploading()
+    }
     
-    @IBAction func button(_ sender: Any) {
-        
+    func resetVarsBeforeUploading() {
+        self.isBackupRunning = false
+        self.uploadButton.isEnabled = true
+        self.cancelBackup = false
+        self.errorOccured = false
+        self.counter = 0
+    }
+    
+    func startBackup() {
         PHPhotoLibrary.requestAuthorization { status in
             switch status {
             case .authorized:
@@ -206,6 +262,7 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
                 self.total = allPhotos.count
                 self.counter = 0
                 self.errorOccured = false
+                self.isBackupRunning = true
                 DispatchQueue.main.async {
                     self.uploadButton.isEnabled = false
                 }
@@ -215,23 +272,31 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
                     print("\(index) waiting..")
                     self.semaphore.wait()
                     print("\(index) entered..")
+                    
                     if (self.errorOccured) {
                         DispatchQueue.main.async {
-                            self.infoLabel.text = "Upload abgebrochen - keine Verbindung zum Server!"
-                            self.uploadButton.isEnabled = true
+                           self.errorOccuredWhileUploading()
                         }
                         return
                     }
                     
-                   // sleep(2)
+                    if (self.cancelBackup) {
+                        DispatchQueue.main.async {
+                            self.backupWasCanceled()
+                        }
+                        return
+                    }
+                    
+//                    sleep(2)
                     let image:PHAsset = allPhotos.object(at: index)
                     
                     image.requestContentEditingInput(with: PHContentEditingInputRequestOptions(), completionHandler: { (eidtingInput, info) in
                         if let input = eidtingInput, let imgURL = input.fullSizeImageURL {
                             let timestamp = Int64((image.creationDate!.timeIntervalSince1970) * 1000)
-//                            self.upload(imgURL: imgURL, timestamp: timestamp)
+                            //                            self.upload(imgURL: imgURL, timestamp: timestamp)
                             self.exists(name: "\(imgURL.absoluteString.split(separator: "/").last!)", timestamp: timestamp,  completion: { result in
                                 guard let exists = result else {
+                                    self.errorOccured = true
                                     self.semaphore.signal()
                                     return
                                 }
@@ -239,24 +304,43 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
                                     print("Image not existing - upload")
                                     self.upload(imgURL: imgURL, timestamp: timestamp, completion: { result in
                                         if result {
+                                           
                                             DispatchQueue.main.async {
-                                                self.counter += 1
-                                                self.infoLabel.text = "\(self.counter) von \(self.total) hochgeladen"
+                                                 self.counter += 1
+                                                if index == allPhotos.count - 1 {
+                                                        self.finishedBackup()
+                                                } else {
+                                                    self.updateHUD()
+                                                }
+                                               
                                             }
                                         } else {
                                             DispatchQueue.main.async {
-                                                self.infoLabel.text = "\(self.counter) von \(self.total) Fehler beim Hochladen!"
+                                                self.errorOccured = true
                                             }
                                         }
                                         self.semaphore.signal()
                                     })
                                 } else {
+                                    
+                                    DispatchQueue.main.async {
+                                        self.counter += 1
+                                        if index == allPhotos.count - 1 {
+                                            self.finishedBackup()
+                                        } else {
+                                            self.updateHUD()
+                                        }
+                                    }
                                     self.semaphore.signal()
                                 }
                             })
                         }
                     })
                 }
+                
+                
+                
+                
             case .denied, .restricted:
                 print("Not allowed")
             case .notDetermined:
@@ -264,6 +348,64 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
                 print("Not determined yet")
             }
         }
+    }
+    
+    func finishedBackup() {
+        UIView.animate(withDuration: 0.1, animations: {
+            self.hud.textLabel.text = "Backup abgeschlossen!"
+            self.hud.detailTextLabel.text = nil
+            self.hud.indicatorView = JGProgressHUDSuccessIndicatorView()
+            self.hud.dismiss(afterDelay: 3, animated: true)
+        })
+        self.infoLabel.text = "\(counter) Bilder wurden erfolgreich gesichert."
+        self.resetVarsBeforeUploading()
+    }
+    
+    func updateHUD() {
+       self.hud.detailTextLabel.text = "\(counter) von \(total) hochgeladen"
+    }
+    
+    @objc func handleTap(sender: UITapGestureRecognizer? = nil) {
+        print("DoubleTap")
+        
+        if !isBackupRunning {
+            return
+        }
+        
+        let alertController = UIAlertController(title: "Backup abbrechen?", message: "", preferredStyle: .alert)
+        let actionYes = UIAlertAction(title: "Ja", style: .destructive) { (action:UIAlertAction) in
+            print("You've pressed Yes");
+            self.cancelBackup = true
+        }
+        let actionNo = UIAlertAction(title: "Nein", style: .cancel) { (action:UIAlertAction) in
+            print("You've pressed no");
+        }
+        alertController.addAction(actionYes)
+        alertController.addAction(actionNo)
+        self.present(alertController, animated: true)
+        
+    }
+    
+    @IBAction func button(_ sender: Any) {
+    
+        self.hud = JGProgressHUD(style: .dark)
+        self.hud.vibrancyEnabled = true
+        self.hud.textLabel.text = "Backup läuft"
+        self.hud.detailTextLabel.text = "\(counter) von \(total) hochgeladen"
+        self.hud.show(in: self.view)
+        
+        self.infoLabel.text = "Doppeltap, um Vorgang abzubrechen."
+        
+        self.startBackup()
+//        DispatchQueue.global().async {
+//            sleep(2)
+//            DispatchQueue.main.async {
+//                self.hud.detailTextLabel.text = "10 von 1500 hochgeladen"
+//
+//            }
+//        }
+        
+       
     }
     
     func getLocalIPAddress() -> String {
