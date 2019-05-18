@@ -10,6 +10,8 @@
 		0D223232228F0BFF00BB0060 /* JGProgressHUD.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0D223230228F0BEB00BB0060 /* JGProgressHUD.framework */; };
 		0D223233228F0BFF00BB0060 /* JGProgressHUD.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 0D223230228F0BEB00BB0060 /* JGProgressHUD.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		0D223235228F267000BB0060 /* NetworkHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D223234228F267000BB0060 /* NetworkHelper.swift */; };
+		0D2232382290098900BB0060 /* NetUtils.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 0D2232362290097B00BB0060 /* NetUtils.framework */; };
+		0D2232392290098900BB0060 /* NetUtils.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 0D2232362290097B00BB0060 /* NetUtils.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		0D2A4821228363D6004951DD /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D2A4820228363D6004951DD /* AppDelegate.swift */; };
 		0D2A4823228363D6004951DD /* ViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D2A4822228363D6004951DD /* ViewController.swift */; };
 		0D2A4826228363D6004951DD /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 0D2A4824228363D6004951DD /* Main.storyboard */; };
@@ -45,6 +47,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
+				0D2232392290098900BB0060 /* NetUtils.framework in Embed Frameworks */,
 				0D223233228F0BFF00BB0060 /* JGProgressHUD.framework in Embed Frameworks */,
 				0D2A485122837D97004951DD /* Alamofire.framework in Embed Frameworks */,
 			);
@@ -56,6 +59,7 @@
 /* Begin PBXFileReference section */
 		0D223230228F0BEB00BB0060 /* JGProgressHUD.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JGProgressHUD.framework; path = Carthage/Build/iOS/JGProgressHUD.framework; sourceTree = SOURCE_ROOT; };
 		0D223234228F267000BB0060 /* NetworkHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkHelper.swift; sourceTree = "<group>"; };
+		0D2232362290097B00BB0060 /* NetUtils.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = NetUtils.framework; path = Carthage/Build/iOS/NetUtils.framework; sourceTree = SOURCE_ROOT; };
 		0D2A481D228363D6004951DD /* PhotoBackup.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PhotoBackup.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0D2A4820228363D6004951DD /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		0D2A4822228363D6004951DD /* ViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewController.swift; sourceTree = "<group>"; };
@@ -77,6 +81,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0D2232382290098900BB0060 /* NetUtils.framework in Frameworks */,
 				0D223232228F0BFF00BB0060 /* JGProgressHUD.framework in Frameworks */,
 				0D2A485022837D97004951DD /* Alamofire.framework in Frameworks */,
 			);
@@ -122,6 +127,7 @@
 		0D2A481F228363D6004951DD /* PhotoBackup */ = {
 			isa = PBXGroup;
 			children = (
+				0D2232362290097B00BB0060 /* NetUtils.framework */,
 				0D223230228F0BEB00BB0060 /* JGProgressHUD.framework */,
 				0D2A484E22837D8C004951DD /* Alamofire.framework */,
 				0D2A4820228363D6004951DD /* AppDelegate.swift */,

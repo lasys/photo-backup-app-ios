@@ -1,0 +1,3 @@
+github "Alamofire/Alamofire" "4.8.2"
+github "JonasGessner/JGProgressHUD"
+github "svdo/swift-netutils"

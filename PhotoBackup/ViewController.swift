@@ -9,9 +9,7 @@
 import UIKit
 import Photos
 import Alamofire
-import Darwin
 import JGProgressHUD
-
 
 class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavigationControllerDelegate{
 
@@ -20,8 +18,7 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
     @IBOutlet weak var infoLabel: UILabel!
     
     var hud = JGProgressHUD(style: .dark)
-    
-    let network = NetworkHelper()
+
     var serverIP = ""
     let semaphore = DispatchSemaphore(value: 0)
     
@@ -30,6 +27,7 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
     var errorOccured = false
     var isBackupRunning = false
     var cancelBackup = false
+    
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -49,7 +47,7 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
     // MARK: - Server Finding
     
     func findServer() {
-        guard let localIP = network.getLocalIPAddress() else {
+        guard let localIP = NetworkHelper.getLocalIPAddress() else {
             self.localIPNotFound()
             return
         }
@@ -141,6 +139,49 @@ class ViewController: UIViewController, UIImagePickerControllerDelegate, UINavig
             }
         })
     }
+    
+    
+    // MARK: - Refactoring startUpload Method
+    
+    func getAllPhotos(completion: @escaping (PHFetchResult<PHAsset>?) -> Void) {
+        PHPhotoLibrary.requestAuthorization { status in
+            switch status {
+            case .authorized:
+                let fetchOptions = PHFetchOptions()
+                let allPhotos = PHAsset.fetchAssets(with: .image, options: fetchOptions)
+                completion(allPhotos)
+            case .denied, .restricted:
+                print("Not allowed")
+                completion(nil)
+            case .notDetermined:
+                // Should not see this when requesting
+                print("Not determined yet")
+                completion(nil)
+            }
+        }
+        completion(nil)
+    }
+    
+    func upload() {
+        
+    }
+    
+    // Startpunkt
+    func backup() {
+        getAllPhotos(completion: {result in
+            guard let allPhotos = result else {
+                return
+            }
+            self.errorOccured = false
+            self.isBackupRunning = true
+            DispatchQueue.main.async {
+                self.uploadButton.isEnabled = false
+            }
+            self.semaphore.signal()
+            
+        })
+    }
+    
     
     
     func startUpload() {
